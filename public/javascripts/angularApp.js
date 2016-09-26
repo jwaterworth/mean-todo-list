@@ -26,6 +26,28 @@ app.config([
             }
         });
 
+        $stateProvider.state('login', {
+            url: '/login',
+            templateUrl: '/login.html',
+            controller: 'AuthCtrl',
+            onEnter: ['$state', 'auth', function ($state, auth) {
+                if (auth.isLoggedIn()) {
+                    $state.go('home');
+                }
+            }]
+        });
+
+        $stateProvider.state('register', {
+            url: '/register',
+            templateUrl: '/register.html',
+            controller: 'AuthCtrl',
+            onEnter: ['$state', 'auth', function ($state, auth) {
+                if (auth.isLoggedIn()) {
+                    $state.go('home');
+                }
+            }]
+        });
+
         $urlRouterProvider.otherwise('home');
     }
 ]);
@@ -64,14 +86,66 @@ app.factory('posts', ['$http', ($http) => {
         return $http.post('/posts/' + id + '/comments', comment);
     }
 
-    o.upvoteComment = function(post, comment) {
+    o.upvoteComment = function (post, comment) {
         return $http.put('/posts/' + post._id + '/comments/' + comment._id + '/upvote')
-        .success(function(data) {
-            comment.upvotes += 1;
-        });
-    } 
+            .success(function (data) {
+                comment.upvotes += 1;
+            });
+    }
 
     return o;
+}]);
+
+app.factory('auth', ['$http', '$window', function ($http, $window) {
+    const tokenKey = 'flapper-news-token';
+
+    var auth = {};
+
+    var getPayload = function (token) {
+        return JSON.parse($window.atob(token.split('.')[1]));
+    }
+
+    auth.saveToken = function (token) {
+        $window.localStorage[tokenKey] = token;
+    }
+
+    auth.getToken = function () {
+        return $window.localStorage[tokenKey];
+    }
+
+    auth.isLoggedIn = function () {
+        var token = auth.getToken();
+
+        if (token) {
+            return getPayload().exp > Date.now() / 1000;
+        }
+    }
+
+    auth.currentUser = function () {
+        if (auth.isLoggedIn()) {
+            var token = auth.getToken();
+
+            return getPayload().username;
+        }
+    }
+
+    auth.register = function (user) {
+        return $http.post('/register', user).success(function (data) {
+            auth.saveToken(data.token);
+        });
+    }
+
+    auth.login = function (user) {
+        return $http.post('/login', user).success(function (data) {
+            auth.saveToken(data.token);
+        });
+    }
+
+    auth.logout = function () {
+        $window.localStorage.removeItem(tokenKey);
+    }
+
+    return auth;
 }]);
 
 app.controller('MainCtrl', [
@@ -123,9 +197,35 @@ app.controller('PostCtrl', [
             $scope.body = '';
         }
 
-        $scope.incrementUpvotes = function(comment) {
+        $scope.incrementUpvotes = function (comment) {
             posts.upvoteComment(post, comment);
         }
-        
     }
 ]);
+
+app.controller('AuthCtrl', [
+    '$scope',
+    '$state',
+    'auth',
+    function ($scope, $state, auth) {
+        $scope.user = {};
+
+        $scope.register = function () {
+            auth.register($scope.user).error(function (error) {
+                $scope.error = error;
+            }).then(function () {
+                $state.go('home');
+            });
+        }
+    }
+]);
+
+app.controller('NavCtrl', [
+    '$scope',
+    'auth',
+    function (scope, auth) {
+        $scope.isLoggedIn = auth.isLoggedIn;
+        $scope.currentUser = auth.currentUser;
+        $scope.logOut = auth.logout;
+    }]
+);
