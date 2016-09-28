@@ -2,27 +2,28 @@ var mongoose = require('mongoose');
 var crypto = require('crypto');
 var jwt = require('jsonwebtoken');
 
-const iterations = 1000;
-const keyLength = 64; 
-
 var UserSchema = new mongoose.Schema({
     username: { type: String, lowercase: true, unique: true },
     hash: String,
     salt: String
 });
 
-UserSchema.methods.setPassword = password => {
+const iterations = 1000;
+const keyLength = 64;
+
+UserSchema.methods.setPassword = function(password) {
     this.salt = crypto.randomBytes(16).toString('hex');
     this.hash = crypto.pbkdf2Sync(password, this.salt, iterations, keyLength).toString('hex');
 };
 
-UserSchema.methods.validPassword = password => {
-    var hash = crypto.pbkdf2Sync(password, this.salt, iterations, keyLength);
-
+UserSchema.methods.validPassword = function(password) {
+    console.log(password);
+    var hash = crypto.pbkdf2Sync(password, this.salt, iterations, keyLength).toString('hex');
+    console.log(hash);
     return this.hash === hash;
 };
 
-UserSchema.methods.generateJWT = () => {
+UserSchema.methods.generateJWT = function() {
     var today = new Date();
     var exp = new Date(today);
 
@@ -30,7 +31,7 @@ UserSchema.methods.generateJWT = () => {
 
     return jwt.sign({
         _id: this._id,
-        username: this.user,
+        username: this.username,
         exp: parseInt(exp.getTime() / 1000)
     }, 'SECRET');
 }

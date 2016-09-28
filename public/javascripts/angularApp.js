@@ -52,7 +52,7 @@ app.config([
     }
 ]);
 
-app.factory('posts', ['$http', ($http) => {
+app.factory('posts', ['$http', 'auth', ($http, auth) => {
     let o = {
         posts: []
     };
@@ -70,24 +70,32 @@ app.factory('posts', ['$http', ($http) => {
     }
 
     o.create = function (post) {
-        return $http.post('/posts', post).success(function (data) {
+        return $http.post('/posts', post, {
+            headers: { Authorization: 'Bearer ' + auth.getToken() }
+        }).success(function (data) {
             o.posts.push(data);
         });
     }
 
     o.upvote = function (post) {
-        return $http.put('/posts/' + post._id + '/upvote')
+        return $http.put('/posts/' + post._id + '/upvote', null, {
+            headers: { Authorization: 'Bearer ' + auth.getToken() }
+        })
             .success(function () {
                 post.upvotes += 1;
             });
     }
 
     o.addComment = function (id, comment) {
-        return $http.post('/posts/' + id + '/comments', comment);
+        return $http.post('/posts/' + id + '/comments', comment, {
+            headers: { Authorization: 'Bearer ' + auth.getToken() }
+        });
     }
 
     o.upvoteComment = function (post, comment) {
-        return $http.put('/posts/' + post._id + '/comments/' + comment._id + '/upvote')
+        return $http.put('/posts/' + post._id + '/comments/' + comment._id + '/upvote', null, {
+            headers: { Authorization: 'Bearer ' + auth.getToken() }
+        })
             .success(function (data) {
                 comment.upvotes += 1;
             });
@@ -117,7 +125,7 @@ app.factory('auth', ['$http', '$window', function ($http, $window) {
         var token = auth.getToken();
 
         if (token) {
-            return getPayload().exp > Date.now() / 1000;
+            return getPayload(token).exp > Date.now() / 1000;
         }
     }
 
@@ -125,7 +133,7 @@ app.factory('auth', ['$http', '$window', function ($http, $window) {
         if (auth.isLoggedIn()) {
             var token = auth.getToken();
 
-            return getPayload().username;
+            return getPayload(token).username;
         }
     }
 
@@ -149,11 +157,11 @@ app.factory('auth', ['$http', '$window', function ($http, $window) {
 }]);
 
 app.controller('MainCtrl', [
-    '$scope', 'posts',
-    function ($scope, posts) {
+    '$scope', 'posts', 'auth',
+    function ($scope, posts, auth) {
         $scope.test = 'Hello World';
-
         $scope.posts = posts.posts;
+        $scope.isLoggedIn = auth.isLoggedIn;
 
         $scope.addPost = () => {
             if (!$scope.title || $scope.title === '') {
@@ -179,8 +187,10 @@ app.controller('PostCtrl', [
     '$scope',
     'posts',
     'post',
-    ($scope, posts, post) => {
+    'auth',
+    ($scope, posts, post, auth) => {
         $scope.post = post;
+        $scope.isLoggedIn = auth.isLoggedIn;
 
         $scope.addComment = () => {
             if ($scope.body === '') {
@@ -189,7 +199,7 @@ app.controller('PostCtrl', [
 
             posts.addComment(post._id, {
                 body: $scope.body,
-                author: 'user'
+                author: auth.currentUser()
             }).success(function (comment) {
                 $scope.post.comments.push(comment);
             });
@@ -217,13 +227,22 @@ app.controller('AuthCtrl', [
                 $state.go('home');
             });
         }
+
+        $scope.logIn = function () {
+            auth.login($scope.user)
+                .error(function (error) {
+                    $scope.error = error;
+                }).then(function () {
+                    $state.go('home');
+                });
+        }
     }
 ]);
 
 app.controller('NavCtrl', [
     '$scope',
     'auth',
-    function (scope, auth) {
+    function ($scope, auth) {
         $scope.isLoggedIn = auth.isLoggedIn;
         $scope.currentUser = auth.currentUser;
         $scope.logOut = auth.logout;

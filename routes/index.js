@@ -129,7 +129,6 @@ router.post('/register', (req, res, next) => {
 
   user.username = req.body.username;
   user.setPassword(req.body.password);
-
   user.save((err) => {
     if (err) { return next(err); }
 
@@ -150,7 +149,7 @@ router.post('/login', (req, res, next) => {
     } else {
       return res.status(401).json(info);
     }
-  });
+  })(req, res, next);
 });
 
 module.exports = router;
